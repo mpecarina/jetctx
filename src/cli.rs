@@ -1,8 +1,7 @@
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::env;
 use std::fmt;
 use std::path::PathBuf;
-
-use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -64,10 +63,6 @@ pub struct PromptArgs {
 
 #[derive(Debug, Clone, Args)]
 pub struct TmuxArgs {
-    /// Render the tmux right status segment
-    #[arg(long)]
-    pub cwd: Option<PathBuf>,
-
     /// Output format
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     pub format: OutputFormat,
@@ -120,26 +115,12 @@ pub enum InspectTarget {
     /// Inspect cached host/system state
     Host(InspectFormatArgs),
 
-    /// Inspect cached project state
-    Project(InspectProjectArgs),
-
     /// Inspect effective theme data
     Theme(InspectThemeArgs),
 }
 
 #[derive(Debug, Clone, Args)]
 pub struct InspectFormatArgs {
-    /// Output format
-    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
-    pub format: OutputFormat,
-}
-
-#[derive(Debug, Clone, Args)]
-pub struct InspectProjectArgs {
-    /// Working directory to resolve project context from
-    #[arg(long)]
-    pub cwd: Option<PathBuf>,
-
     /// Output format
     #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
     pub format: OutputFormat,
