@@ -61,22 +61,6 @@ pub struct BasePalette {
     pub bg: Option<String>,
     #[serde(default)]
     pub fg: Option<String>,
-    #[serde(default)]
-    pub muted: Option<String>,
-    #[serde(default)]
-    pub subtle: Option<String>,
-    #[serde(default)]
-    pub surface: Option<String>,
-    #[serde(default)]
-    pub surface_alt: Option<String>,
-    #[serde(default)]
-    pub border: Option<String>,
-    #[serde(default)]
-    pub border_active: Option<String>,
-    #[serde(default)]
-    pub selection: Option<String>,
-    #[serde(default)]
-    pub cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -92,14 +76,6 @@ pub struct SemanticPalette {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct PromptPalette {
     #[serde(default)]
-    pub directory: Option<String>,
-    #[serde(default)]
-    pub status_ok: Option<String>,
-    #[serde(default)]
-    pub status_error: Option<String>,
-    #[serde(default)]
-    pub duration: Option<String>,
-    #[serde(default)]
     pub success_symbol: Option<String>,
     #[serde(default)]
     pub error_symbol: Option<String>,
@@ -107,24 +83,6 @@ pub struct PromptPalette {
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct TmuxPalette {
-    #[serde(default)]
-    pub status_bg: Option<String>,
-    #[serde(default)]
-    pub status_fg: Option<String>,
-    #[serde(default)]
-    pub status_muted: Option<String>,
-    #[serde(default)]
-    pub session_bg: Option<String>,
-    #[serde(default)]
-    pub session_fg: Option<String>,
-    #[serde(default)]
-    pub window_active_bg: Option<String>,
-    #[serde(default)]
-    pub window_active_fg: Option<String>,
-    #[serde(default)]
-    pub window_inactive_bg: Option<String>,
-    #[serde(default)]
-    pub window_inactive_fg: Option<String>,
     #[serde(default)]
     pub segment_info_bg: Option<String>,
     #[serde(default)]

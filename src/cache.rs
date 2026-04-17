@@ -66,10 +66,6 @@ impl ProjectCacheEntry {
     pub fn is_fresh(&self, ttl_seconds: u64) -> bool {
         is_fresh(self.updated_at_epoch_secs, ttl_seconds)
     }
-
-    pub fn root_path(&self) -> PathBuf {
-        PathBuf::from(&self.root)
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,7 +88,6 @@ pub struct HostCacheEntry {
     pub hostname: Option<String>,
     pub os: Option<String>,
     pub battery_percent: Option<u8>,
-    pub battery_charging: Option<bool>,
     pub memory_used_bytes: Option<u64>,
     pub memory_total_bytes: Option<u64>,
     pub time_label: Option<String>,
@@ -189,7 +184,6 @@ pub fn build_host_cache_entry(config: &Config) -> HostCacheEntry {
         hostname: detect_hostname(),
         os: Some(std::env::consts::OS.to_string()),
         battery_percent: detect_battery_percent(),
-        battery_charging: detect_battery_charging(),
         memory_used_bytes: detect_memory_used_bytes(),
         memory_total_bytes: detect_memory_total_bytes(),
         time_label: detect_time_label(),
@@ -254,20 +248,6 @@ fn detect_battery_percent() -> Option<u8> {
         .parse::<u8>()
         .ok()?;
     Some(percent)
-}
-
-fn detect_battery_charging() -> Option<bool> {
-    let output = command_stdout_with_args("pmset", &["-g", "batt"])?;
-    let lower = output.to_lowercase();
-
-    if lower.contains("not charging") {
-        return Some(false);
-    }
-    if lower.contains("charging") || lower.contains("charged") || lower.contains("ac attached") {
-        return Some(true);
-    }
-
-    None
 }
 
 fn detect_memory_total_bytes() -> Option<u64> {

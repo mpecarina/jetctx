@@ -5,17 +5,13 @@ mod detect;
 mod render;
 mod theme;
 
-use std::path::PathBuf;
 use std::process;
 
 use anyhow::{Context, Result};
-use cache::{
-    load_host_entry, load_or_refresh_host_entry, load_or_refresh_project_entry, refresh_host_cache,
-    refresh_project_cache, ProjectCacheEntry,
-};
+use cache::{load_host_entry, load_or_refresh_host_entry, refresh_host_cache};
 use cli::{
-    Cli, Command, InspectArgs, InspectFormatArgs, InspectProjectArgs, InspectTarget,
-    InspectThemeArgs, OutputFormat, PromptArgs, TmuxArgs, UpdateArgs, UpdateScope,
+    Cli, Command, InspectArgs, InspectFormatArgs, InspectTarget, InspectThemeArgs, OutputFormat,
+    PromptArgs, TmuxArgs, UpdateArgs, UpdateScope,
 };
 use config::Config;
 use render::prompt;
@@ -55,7 +51,7 @@ fn handle_tmux(config: &Config, args: &TmuxArgs) -> Result<()> {
     let theme = load_theme(config, None)?;
     let host_cache = load_or_refresh_host_entry(config)?;
 
-    let context = tmux_context(args.cwd.as_ref(), &host_cache);
+    let context = tmux_context(&host_cache);
     let rendered = tmux::render(TmuxTarget::Right, &context, config, &theme);
     print_output(&rendered, Some(&context), args.format)
 }
@@ -82,18 +78,8 @@ fn handle_update(config: &Config, args: &UpdateArgs) -> Result<()> {
             );
         }
         UpdateScope::Project(project_args) => {
-            let entry = refresh_or_load_project_cache(
-                config,
-                project_args.cwd.as_ref(),
-                project_args.force,
-            )?
-            .ok_or_else(|| anyhow::anyhow!("failed to determine project context"))?;
-
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&entry)
-                    .context("failed to serialize project cache update result")?
-            );
+            let _ = project_args;
+            println!("project cache is used by the prompt only");
         }
         UpdateScope::All(project_args) => {
             let host_entry = if project_args.force {
@@ -108,16 +94,7 @@ fn handle_update(config: &Config, args: &UpdateArgs) -> Result<()> {
                 refresh_host_cache(config)?
             };
 
-            let project_entry = refresh_or_load_project_cache(
-                config,
-                project_args.cwd.as_ref(),
-                project_args.force,
-            )?;
-
-            let payload = serde_json::json!({
-                "host_cache": host_entry,
-                "project_cache": project_entry
-            });
+            let payload = serde_json::json!({ "host_cache": host_entry });
 
             println!(
                 "{}",
@@ -133,7 +110,6 @@ fn handle_update(config: &Config, args: &UpdateArgs) -> Result<()> {
 fn handle_inspect(config: &Config, args: &InspectArgs) -> Result<()> {
     match &args.target {
         InspectTarget::Host(format_args) => inspect_host(config, format_args),
-        InspectTarget::Project(project_args) => inspect_project(config, project_args),
         InspectTarget::Theme(theme_args) => inspect_theme(config, theme_args),
     }
 }
@@ -151,27 +127,6 @@ fn inspect_host(config: &Config, args: &InspectFormatArgs) -> Result<()> {
         "theme_search_precedence": search_dirs.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
         "effective_theme": config.theme,
         "host_cache": host_cache
-    });
-
-    print_structured_json(&payload, args.format)
-}
-
-fn inspect_project(config: &Config, args: &InspectProjectArgs) -> Result<()> {
-    let cwd = resolve_cwd(args.cwd.as_ref())?;
-    let project_entry = load_or_refresh_project_cache(config, &cwd)?;
-    let cache_path = project_entry
-        .as_ref()
-        .map(|entry| {
-            cache::CachePaths::discover()
-                .map(|paths| paths.project_file_for_root(&entry.root_path()))
-                .ok()
-        })
-        .flatten();
-
-    let payload = serde_json::json!({
-        "cwd": cwd.display().to_string(),
-        "cache_path": cache_path.map(|p| p.display().to_string()),
-        "project_cache": project_entry
     });
 
     print_structured_json(&payload, args.format)
@@ -265,41 +220,11 @@ fn print_structured_json(value: &serde_json::Value, format: OutputFormat) -> Res
     Ok(())
 }
 
-fn tmux_context(cwd: Option<&PathBuf>, host_cache: &cache::HostCacheEntry) -> TmuxContext {
-    let _ = cwd;
-
+fn tmux_context(host_cache: &cache::HostCacheEntry) -> TmuxContext {
     TmuxContext {
         battery_percent: host_cache.battery_percent,
         memory_used_bytes: host_cache.memory_used_bytes,
         memory_total_bytes: host_cache.memory_total_bytes,
         time_label: host_cache.time_label.clone(),
     }
-}
-
-fn resolve_cwd(cwd: Option<&PathBuf>) -> Result<PathBuf> {
-    match cwd {
-        Some(path) => Ok(path.clone()),
-        None => std::env::current_dir().context("failed to determine current working directory"),
-    }
-}
-
-fn refresh_or_load_project_cache(
-    config: &Config,
-    cwd: Option<&PathBuf>,
-    force: bool,
-) -> Result<Option<ProjectCacheEntry>> {
-    let cwd = resolve_cwd(cwd)?;
-
-    if force {
-        return refresh_project_cache(&cwd, config);
-    }
-
-    load_or_refresh_project_entry(&cwd, config)
-}
-
-fn load_or_refresh_project_cache(
-    config: &Config,
-    cwd: &PathBuf,
-) -> Result<Option<ProjectCacheEntry>> {
-    load_or_refresh_project_entry(cwd, config)
 }
