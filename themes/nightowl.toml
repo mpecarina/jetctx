@@ -1,0 +1,27 @@
+name = "nightowl"
+kind = "dark"
+
+[base]
+bg = "#011627"
+fg = "#d6deeb"
+muted = "#637777"
+surface = "#0b2239"
+border = "#44596b"
+
+[accent]
+blue = "#82aaff"
+cyan = "#7fdbca"
+green = "#22da6e"
+yellow = "#ffeb95"
+orange = "#f78c6c"
+red = "#ef5350"
+purple = "#c792ea"
+
+[semantic]
+ok = "#22da6e"
+warn = "#ffeb95"
+error = "#ef5350"
+info = "#82aaff"
+git = "#82aaff"
+env = "#c792ea"
+time = "#637777"

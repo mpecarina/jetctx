@@ -1,0 +1,15 @@
+[package]
+name = "jetctx"
+version = "0.1.0"
+edition = "2021"
+description = "Unified fast terminal context renderer for prompt and tmux"
+license = "MIT"
+publish = false
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4.5", features = ["derive"] }
+dirs = "5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
