@@ -105,7 +105,41 @@ pub fn render_model(args: &PromptArgs, config: &Config, theme: &Theme) -> Prompt
 }
 
 fn render_text(args: &PromptArgs, config: &Config, theme: &Theme) -> String {
-    render_model(args, config, theme).rendered
+    let model = render_model(args, config, theme);
+    let mut segments = Vec::new();
+
+    segments.push(paint(&model.cwd, prompt_directory_color(theme)));
+
+    if let Some(branch) = model.git_branch.as_deref() {
+        let mut git_segment = vec![
+            paint("△", prompt_git_marker_color(theme)),
+            paint(branch, prompt_branch_color(theme)),
+        ];
+        if model.git_dirty {
+            git_segment.push(paint("*", prompt_dirty_color(theme)));
+        }
+        segments.push(git_segment.join(" "));
+    }
+
+    if model.show_duration {
+        if let Some(duration_ms) = model.duration_ms {
+            segments.push(paint(
+                &format!("◄ {}ms", duration_ms),
+                prompt_duration_color(theme),
+            ));
+        }
+    }
+
+    let mut rendered = String::new();
+    if !segments.is_empty() {
+        rendered.push_str(&segments.join(" "));
+        rendered.push('\n');
+    }
+    rendered.push_str(&paint(
+        &model.symbol,
+        prompt_symbol_color(theme, model.exit_code),
+    ));
+    rendered
 }
 
 fn render_json(args: &PromptArgs, config: &Config, theme: &Theme) -> String {
@@ -207,6 +241,95 @@ fn render_git_segment(project: &ProjectContext, _config: &Config) -> Option<Stri
         Some(branch_segment)
     } else {
         None
+    }
+}
+
+fn paint(text: &str, color: Option<&str>) -> String {
+    let escaped = escape_prompt_text(text);
+    match color.and_then(non_empty) {
+        Some(color) => format!("%F{{{color}}}{escaped}%f"),
+        None => escaped,
+    }
+}
+
+fn escape_prompt_text(text: &str) -> String {
+    text.replace('%', "%%")
+}
+
+fn prompt_directory_color(theme: &Theme) -> Option<&str> {
+    theme
+        .prompt
+        .directory
+        .as_deref()
+        .or(theme.tmux.segment_info_bg.as_deref())
+        .or(theme.base.fg.as_deref())
+}
+
+fn prompt_branch_color(theme: &Theme) -> Option<&str> {
+    theme
+        .prompt
+        .branch
+        .as_deref()
+        .or(theme.tmux.segment_info_fg.as_deref())
+        .or(theme.prompt.repo.as_deref())
+        .or(theme.tmux.segment_info_bg.as_deref())
+        .or(theme.base.fg.as_deref())
+}
+
+fn prompt_git_marker_color(theme: &Theme) -> Option<&str> {
+    theme
+        .prompt
+        .repo
+        .as_deref()
+        .or(theme.tmux.segment_info_bg.as_deref())
+        .or(theme.base.fg.as_deref())
+}
+
+fn prompt_dirty_color(theme: &Theme) -> Option<&str> {
+    theme
+        .prompt
+        .dirty
+        .as_deref()
+        .or(theme.semantic.warn.as_deref())
+        .or(theme.tmux.segment_warn_bg.as_deref())
+        .or(theme.base.fg.as_deref())
+}
+
+fn prompt_duration_color(theme: &Theme) -> Option<&str> {
+    theme
+        .prompt
+        .duration
+        .as_deref()
+        .or(theme.tmux.segment_time_bg.as_deref())
+        .or(theme.semantic.warn.as_deref())
+}
+
+fn prompt_symbol_color(theme: &Theme, exit_code: i32) -> Option<&str> {
+    theme.prompt.symbol.as_deref().or_else(|| {
+        if exit_code == 0 {
+            theme
+                .prompt
+                .status_ok
+                .as_deref()
+                .or(theme.tmux.segment_info_bg.as_deref())
+                .or(theme.semantic.ok.as_deref())
+        } else {
+            theme
+                .prompt
+                .status_error
+                .as_deref()
+                .or(theme.tmux.segment_error_bg.as_deref())
+                .or(theme.semantic.error.as_deref())
+        }
+    })
+}
+
+fn non_empty(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
     }
 }
 

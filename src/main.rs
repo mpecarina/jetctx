@@ -16,7 +16,7 @@ use cli::{
 use config::Config;
 use render::prompt;
 use render::tmux::{self, TmuxContext, TmuxTarget};
-use theme::{default_theme_search_dirs, Theme};
+use theme::{analyze_theme_file, default_theme_search_dirs, Theme};
 
 fn main() {
     if let Err(err) = run() {
@@ -133,8 +133,20 @@ fn inspect_host(config: &Config, args: &InspectFormatArgs) -> Result<()> {
 }
 
 fn inspect_theme(config: &Config, args: &InspectThemeArgs) -> Result<()> {
-    let theme = load_theme(config, args.theme.as_deref())?;
-    let payload = serde_json::to_value(&theme).context("failed to serialize theme")?;
+    let search_dirs = default_theme_search_dirs();
+    let theme_path = Theme::resolve_path(
+        args.theme.as_deref(),
+        Some(config.theme.as_str()),
+        &search_dirs,
+    )
+    .with_context(|| "failed to resolve theme path for inspection".to_string())?;
+    let theme = Theme::from_path(&theme_path)?;
+    let support = analyze_theme_file(&theme_path)?;
+    let payload = serde_json::json!({
+        "theme_path": theme_path.display().to_string(),
+        "theme": theme,
+        "support": support,
+    });
     print_structured_json(&payload, args.format)
 }
 
