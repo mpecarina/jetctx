@@ -58,12 +58,6 @@ impl Theme {
             .with_context(|| format!("failed to locate theme '{theme_name}'"))
     }
 
-    pub fn load_named(name: &str, search_dirs: &[PathBuf]) -> Result<Self> {
-        let path = find_theme_path(name, search_dirs)
-            .with_context(|| format!("failed to locate theme '{name}'"))?;
-
-        Self::from_path(&path)
-    }
 }
 
 #[derive(Debug, Clone, Serialize)]
