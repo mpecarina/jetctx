@@ -1,0 +1,11 @@
+name = "flat"
+
+[tmux]
+segment_info_bg = ""
+segment_info_fg = ""
+segment_warn_bg = ""
+segment_warn_fg = ""
+segment_error_bg = ""
+segment_error_fg = ""
+segment_time_bg = ""
+segment_time_fg = ""
