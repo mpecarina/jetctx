@@ -1,0 +1,139 @@
+# jetctx
+
+shared prompt and tmux context renderer.
+
+`jetctx` renders:
+
+- a zsh prompt with cwd, git branch/dirty state, and optional command duration
+- a tmux right-side status segment with battery, memory, and time
+
+It uses one config file, one theme, and shared cache files under `~/.cache/jetctx/`.
+
+## Install (TPM)
+
+Add this to your `~/.tmux.conf`:
+
+```tmux
+set -g @plugin 'mpecarina/jetctx'
+
+# tmux status-right
+set -g status-right '#(~/.tmux/plugins/jetctx/bin/jetctx tmux)'
+
+run '~/.tmux/plugins/tpm/tpm'
+```
+
+Then in tmux: `prefix + I` to install.
+
+`bin/jetctx` is a tracked wrapper that auto-builds `target/release/jetctx` when the
+binary is missing or the git commit changed.
+
+## Install (Manual)
+
+```sh
+cargo build --release
+mkdir -p bin
+cp target/release/jetctx bin/jetctx
+```
+
+Then use `bin/jetctx` in your shell prompt and tmux config.
+
+## Zsh Prompt
+
+The prompt output uses zsh prompt color escapes, so wire it into zsh rather than a
+generic POSIX prompt.
+
+Minimal `~/.zshrc` example:
+
+```zsh
+setopt prompt_subst
+export PATH="$PATH:$HOME/.tmux/plugins/jetctx/bin"
+
+jetctx_precmd() {
+  local exit_code=$?
+  PROMPT="$(jetctx prompt --cwd "$PWD" --exit-code "$exit_code") "
+}
+
+precmd_functions+=(jetctx_precmd)
+```
+
+If you already track command timing in your shell, pass it through with
+`--duration-ms <ms>`.
+
+## Tmux
+
+`jetctx.tmux` is intentionally just a TPM entrypoint. The actual tmux integration is
+your `status-right` command:
+
+```tmux
+set -g status-right '#(~/.tmux/plugins/jetctx/bin/jetctx tmux)'
+```
+
+Current tmux output includes:
+
+- battery percent
+- memory used/total, when enabled
+- time label
+
+Segments are omitted when data is unavailable.
+
+## Config
+
+Config resolution order:
+
+- `JETCTX_CONFIG`
+- `~/.config/jetctx/config.toml`
+- built-in defaults
+
+Example `~/.config/jetctx/config.toml`:
+
+```toml
+theme = "nightowl"
+
+[prompt]
+show_git = true
+show_duration = true
+duration_min_ms = 400
+
+[tmux]
+show_memory = true
+battery_symbol = "BAT"
+memory_symbol = "MEM"
+time_symbol = "◷"
+
+[update]
+host_ttl_seconds = 15
+project_ttl_seconds = 3
+```
+
+Theme override:
+
+```sh
+export JETCTX_THEME=shaman
+```
+
+Bundled themes:
+
+- `nightowl`
+- `shaman`
+
+Theme search order currently prefers `~/.config/jetctx/themes/` before bundled repo
+themes.
+
+## Commands
+
+```sh
+jetctx prompt --cwd "$PWD" --exit-code 0
+jetctx prompt --cwd "$PWD" --exit-code 1 --duration-ms 842
+jetctx tmux
+jetctx update host --force
+jetctx update project --cwd "$PWD"
+jetctx inspect host
+jetctx inspect theme
+jetctx doctor
+```
+
+## Notes
+
+- Prompt rendering is currently zsh-oriented.
+- Host cache collection is currently macOS-oriented (`pmset`, `vm_stat`, `sysctl`, `date`).
+- `jetctx update project` exists, but project cache is currently consumed by prompt rendering rather than tmux.
