@@ -115,6 +115,7 @@ Bundled themes:
 
 - `nightowl`
 - `shaman`
+- `flat`
 
 Theme search order currently prefers `~/.config/jetctx/themes/` before bundled repo
 themes.
