@@ -1,7 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::hash::{Hash, Hasher};
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -65,6 +65,10 @@ pub struct ProjectCacheEntry {
 impl ProjectCacheEntry {
     pub fn is_fresh(&self, ttl_seconds: u64) -> bool {
         is_fresh(self.updated_at_epoch_secs, ttl_seconds)
+    }
+
+    pub fn root_path(&self) -> PathBuf {
+        PathBuf::from(&self.root)
     }
 }
 
@@ -142,13 +146,10 @@ pub fn build_project_cache_entry(
         return Ok(None);
     };
 
-    let git_ctx = if project_info.has_git_marker()
-        || matches!(project_info.kind, project::ProjectKind::Git)
-    {
-        git::detect(&project_info.root)?
-    } else {
-        None
-    };
+    // Project markers can be nested below a repository root (for example a
+    // package.json in a monorepo), so git detection must start at the caller's
+    // cwd rather than only at the nearest project marker.
+    let git_ctx = git::detect(cwd)?;
 
     let markers = project_info
         .markers
@@ -203,7 +204,7 @@ pub fn load_or_refresh_project_entry(
     cwd: &Path,
     config: &Config,
 ) -> Result<Option<ProjectCacheEntry>> {
-    if let Some(existing) = load_project_entry_for_cwd(cwd)? {
+    if let Ok(Some(existing)) = load_project_entry_for_cwd(cwd) {
         if existing.is_fresh(config.update.project_ttl_seconds) {
             return Ok(Some(existing));
         }
@@ -219,7 +220,7 @@ pub fn refresh_host_cache(config: &Config) -> Result<HostCacheEntry> {
 }
 
 pub fn load_or_refresh_host_entry(config: &Config) -> Result<HostCacheEntry> {
-    if let Some(existing) = load_host_entry()? {
+    if let Ok(Some(existing)) = load_host_entry() {
         if existing.is_fresh(config.update.host_ttl_seconds) {
             return Ok(existing);
         }
@@ -244,7 +245,7 @@ fn detect_battery_percent() -> Option<u8> {
     let percent = output
         .split_whitespace()
         .find(|part| part.contains('%'))?
-        .trim_end_matches(|c: char| c == '%' || c == ';')
+        .trim_end_matches(['%', ';'])
         .parse::<u8>()
         .ok()?;
     Some(percent)
@@ -358,8 +359,45 @@ where
 
     let payload =
         serde_json::to_string_pretty(value).context("failed to serialize cache payload")?;
-    fs::write(path, payload)
-        .with_context(|| format!("failed to write cache file: {}", path.display()))
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("cache");
+    let temp_path = path.with_file_name(format!(
+        ".{file_name}.{}.{}.tmp",
+        std::process::id(),
+        now_epoch_nanos()
+    ));
+
+    let write_result = (|| -> Result<()> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)
+            .with_context(|| {
+                format!(
+                    "failed to create temporary cache file: {}",
+                    temp_path.display()
+                )
+            })?;
+        file.write_all(payload.as_bytes()).with_context(|| {
+            format!(
+                "failed to write temporary cache file: {}",
+                temp_path.display()
+            )
+        })?;
+        drop(file);
+
+        fs::rename(&temp_path, path)
+            .with_context(|| format!("failed to replace cache file: {}", path.display()))?;
+        Ok(())
+    })();
+
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+
+    write_result
 }
 
 fn now_epoch_secs() -> u64 {
@@ -369,13 +407,21 @@ fn now_epoch_secs() -> u64 {
         .unwrap_or(0)
 }
 
+fn now_epoch_nanos() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0)
+}
+
 fn is_fresh(updated_at_epoch_secs: u64, ttl_seconds: u64) -> bool {
     if ttl_seconds == 0 {
         return false;
     }
 
-    let now = now_epoch_secs();
-    now.saturating_sub(updated_at_epoch_secs) <= ttl_seconds
+    now_epoch_secs()
+        .checked_sub(updated_at_epoch_secs)
+        .is_some_and(|age| age <= ttl_seconds)
 }
 
 #[cfg(test)]
@@ -387,6 +433,7 @@ mod tests {
         let now = now_epoch_secs();
         assert!(is_fresh(now, 30));
         assert!(!is_fresh(now.saturating_sub(31), 30));
+        assert!(!is_fresh(now.saturating_add(1), 30));
     }
 
     #[test]

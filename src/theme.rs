@@ -1,10 +1,10 @@
+use std::collections::BTreeSet;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 
 const ENV_THEME: &str = "JETCTX_THEME";
 
@@ -57,7 +57,6 @@ impl Theme {
         find_theme_path(theme_name, search_dirs)
             .with_context(|| format!("failed to locate theme '{theme_name}'"))
     }
-
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -156,19 +155,50 @@ pub struct TmuxPalette {
 }
 
 pub fn default_theme_search_dirs() -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
+    let mut search_dirs = Vec::new();
 
-    if let Ok(xdg_home) = env::var("XDG_CONFIG_HOME") {
-        dirs.push(PathBuf::from(xdg_home).join("jetctx").join("themes"));
+    let xdg_home = env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    if let Some(xdg_home) = xdg_home {
+        push_unique(
+            &mut search_dirs,
+            PathBuf::from(xdg_home).join("jetctx").join("themes"),
+        );
     } else if let Some(home) = dirs::home_dir() {
-        dirs.push(home.join(".config").join("jetctx").join("themes"));
+        push_unique(
+            &mut search_dirs,
+            home.join(".config").join("jetctx").join("themes"),
+        );
     }
 
-    if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
-        dirs.push(PathBuf::from(manifest_dir).join("themes"));
+    // TPM executes target/release/jetctx from inside the plugin checkout. Look
+    // upward from the executable so bundled themes remain available at runtime.
+    if let Ok(executable) = env::current_exe() {
+        if let Some(parent) = executable.parent() {
+            for ancestor in parent.ancestors().take(4) {
+                let candidate = ancestor.join("themes");
+                if candidate.is_dir() {
+                    push_unique(&mut search_dirs, candidate);
+                }
+            }
+        }
     }
 
-    dirs
+    // This compile-time fallback covers development builds and direct manual
+    // invocation even though CARGO_MANIFEST_DIR is not exported at runtime.
+    push_unique(
+        &mut search_dirs,
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("themes"),
+    );
+
+    search_dirs
+}
+
+fn push_unique(paths: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if !paths.contains(&candidate) {
+        paths.push(candidate);
+    }
 }
 
 pub fn find_theme_path(name: &str, search_dirs: &[PathBuf]) -> Result<PathBuf> {
@@ -247,4 +277,34 @@ fn supported_theme_fields() -> BTreeSet<&'static str> {
         "tmux.segment_time_bg",
         "tmux.segment_time_fg",
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bundled_themes_are_available_without_runtime_cargo_environment() {
+        let bundled_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("themes");
+        let search_dirs = default_theme_search_dirs();
+
+        assert!(search_dirs.contains(&bundled_dir));
+        for name in ["nightowl", "shaman", "flat"] {
+            let path = find_theme_path(name, std::slice::from_ref(&bundled_dir))
+                .expect("bundled theme should resolve");
+            Theme::from_path(&path).expect("bundled theme should parse");
+        }
+    }
+
+    #[test]
+    fn bundled_nightowl_preserves_tmux_palette() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("themes")
+            .join("nightowl.toml");
+        let theme = Theme::from_path(&path).expect("nightowl theme should parse");
+
+        assert_eq!(theme.tmux.segment_info_bg.as_deref(), Some("#82aaff"));
+        assert_eq!(theme.tmux.segment_time_bg.as_deref(), Some("#f78c6c"));
+        assert_eq!(theme.tmux.segment_time_fg.as_deref(), Some("#011627"));
+    }
 }

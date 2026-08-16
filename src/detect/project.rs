@@ -43,14 +43,6 @@ pub struct ProjectInfo {
     pub markers: Vec<ProjectMarkerMatch>,
 }
 
-impl ProjectInfo {
-    pub fn has_git_marker(&self) -> bool {
-        self.markers
-            .iter()
-            .any(|marker| marker.kind == ProjectKind::Git)
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct DetectOptions<'a> {
     pub stop_at: Option<&'a Path>,
@@ -190,21 +182,29 @@ mod tests {
 
     #[test]
     fn falls_back_to_plain_project_when_no_markers_exist() {
-        let root = PathBuf::from("/tmp/example");
+        let parent = std::env::temp_dir();
+        let root = parent.join(format!("jetctx-project-test-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("temporary project should be created");
+
         let info = detect_with_options(
             &root,
             DetectOptions {
-                stop_at: Some(Path::new("/tmp")),
+                stop_at: Some(&parent),
                 include_plain_fallback: true,
             },
         )
         .expect("plain fallback should exist");
 
         assert_eq!(info.cwd, root);
-        assert_eq!(info.root, PathBuf::from("/tmp/example"));
+        assert_eq!(info.root, root);
         assert_eq!(info.kind, ProjectKind::Plain);
         assert!(info.markers.is_empty());
-        assert_eq!(info.name, "example");
+        assert_eq!(
+            info.name,
+            format!("jetctx-project-test-{}", std::process::id())
+        );
+
+        std::fs::remove_dir_all(root).expect("temporary project should be removed");
     }
 
     #[test]

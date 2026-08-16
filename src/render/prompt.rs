@@ -3,7 +3,7 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::cache::{self, GitCacheEntry};
-use crate::cli::{OutputFormat, PromptArgs};
+use crate::cli::PromptArgs;
 use crate::config::Config;
 use crate::detect::{git, project};
 use crate::theme::Theme;
@@ -42,14 +42,12 @@ pub struct PromptRenderModel {
 }
 
 pub fn render(args: &PromptArgs, config: &Config, theme: &Theme) -> String {
-    match args.format {
-        OutputFormat::Text => render_text(args, config, theme),
-        OutputFormat::Json => render_json(args, config, theme),
-    }
+    render_text(args, config, theme)
 }
 
 pub fn render_model(args: &PromptArgs, config: &Config, theme: &Theme) -> PromptRenderModel {
-    let cwd_path = args.cwd.as_deref();
+    let resolved_cwd = args.cwd.clone().or_else(|| std::env::current_dir().ok());
+    let cwd_path = resolved_cwd.as_deref();
     let cwd = render_cwd(cwd_path, config);
     let project_context = detect_project_context(cwd_path, config);
     let duration_visible = should_show_duration(args, config);
@@ -142,16 +140,6 @@ fn render_text(args: &PromptArgs, config: &Config, theme: &Theme) -> String {
     rendered
 }
 
-fn render_json(args: &PromptArgs, config: &Config, theme: &Theme) -> String {
-    let model = render_model(args, config, theme);
-    serde_json::to_string_pretty(&model).unwrap_or_else(|_| {
-        format!(
-            "{{\"error\":\"failed to serialize prompt model\",\"cwd\":{:?}}}",
-            model.cwd
-        )
-    })
-}
-
 fn should_show_duration(args: &PromptArgs, config: &Config) -> bool {
     if !config.prompt.show_duration {
         return false;
@@ -181,13 +169,9 @@ fn detect_project_context(cwd: Option<&Path>, config: &Config) -> ProjectContext
 }
 
 fn detect_live_project_context(cwd: &Path) -> ProjectContext {
-    let git = project::detect(cwd).as_ref().and_then(|info| {
-        if info.has_git_marker() || matches!(info.kind, project::ProjectKind::Git) {
-            git::detect(&info.root).ok().flatten()
-        } else {
-            None
-        }
-    });
+    // Git and language/package roots are independent. Detecting git directly
+    // from cwd preserves repository context inside nested monorepo packages.
+    let git = git::detect(cwd).ok().flatten();
 
     ProjectContext { git }
 }
@@ -253,7 +237,22 @@ fn paint(text: &str, color: Option<&str>) -> String {
 }
 
 fn escape_prompt_text(text: &str) -> String {
-    text.replace('%', "%%")
+    let mut escaped = String::with_capacity(text.len());
+
+    for ch in text.chars() {
+        match ch {
+            // zsh prompt escapes are introduced with %. For characters that
+            // prompt_subst would execute, emit a non-recursive parameter
+            // expansion that evaluates to the literal character.
+            '%' => escaped.push_str("%%"),
+            '\\' => escaped.push_str("${:-\\\\}"),
+            '$' => escaped.push_str("${:-\\$}"),
+            '`' => escaped.push_str("${:-\\`}"),
+            _ => escaped.push(ch),
+        }
+    }
+
+    escaped
 }
 
 fn prompt_directory_color(theme: &Theme) -> Option<&str> {
@@ -359,17 +358,19 @@ fn render_cwd(cwd: Option<&Path>, config: &Config) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use super::*;
-    use crate::cli::PromptArgs;
+    use crate::cli::{OutputFormat, PromptArgs};
     use crate::config::Config;
     use crate::theme::Theme;
 
     fn test_theme() -> Theme {
         Theme {
             name: "test".to_string(),
-            kind: Some("dark".to_string()),
             base: Default::default(),
-            accent: Default::default(),
             semantic: Default::default(),
             prompt: crate::theme::PromptPalette {
                 success_symbol: Some("◎".to_string()),
@@ -383,7 +384,6 @@ mod tests {
     fn test_config() -> Config {
         let mut config = Config::default();
         config.prompt.duration_min_ms = 400;
-        config.prompt.cwd_components = 2;
         config
     }
 
@@ -410,26 +410,41 @@ mod tests {
         };
 
         let rendered = render(&args, &test_config(), &test_theme());
-        assert_eq!(rendered, "status=1 /tmp/example ◄ 842ms\n○");
+        assert_eq!(rendered, "/tmp/example ◄ 842ms\n○");
     }
 
     #[test]
-    fn truncates_long_paths() {
-        let rendered = truncate_path(Path::new("/a/b/c/d"), 2);
-        assert_eq!(rendered, "/c/d");
+    fn escapes_zsh_prompt_substitutions_without_changing_plain_text() {
+        assert_eq!(escape_prompt_text("plain/path"), "plain/path");
+        assert_eq!(
+            escape_prompt_text("$(>PWNED) `cmd` \\ 100%"),
+            "${:-\\$}(>PWNED) ${:-\\`}cmd${:-\\`} ${:-\\\\} 100%%"
+        );
     }
 
     #[test]
-    fn renders_json_output() {
-        let args = PromptArgs {
-            cwd: Some(PathBuf::from("/tmp/example")),
-            exit_code: 0,
-            duration_ms: Some(500),
-            format: OutputFormat::Json,
-        };
+    fn detects_git_above_a_nested_project_marker() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "jetctx-prompt-test-{}-{unique}",
+            std::process::id()
+        ));
+        let package = root.join("packages/app");
+        fs::create_dir_all(root.join(".git")).expect("git dir should be created");
+        fs::create_dir_all(&package).expect("package dir should be created");
+        fs::write(root.join(".git/HEAD"), "ref: refs/heads/feature/deep\n")
+            .expect("HEAD should be written");
+        fs::write(package.join("package.json"), "{}\n").expect("package marker should be written");
 
-        let rendered = render(&args, &test_config(), &test_theme());
-        assert!(rendered.contains("\"cwd\": \"/tmp/example\""));
-        assert!(rendered.contains("\"show_duration\": true"));
+        let context = detect_live_project_context(&package);
+        assert_eq!(
+            context.git.and_then(|git| git.branch),
+            Some("feature/deep".to_string())
+        );
+
+        fs::remove_dir_all(root).expect("temporary project should be removed");
     }
 }
