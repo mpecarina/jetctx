@@ -22,20 +22,26 @@ set -g status-right '#(~/.tmux/plugins/jetctx/bin/jetctx tmux)'
 run '~/.tmux/plugins/tpm/tpm'
 ```
 
-Then in tmux: `prefix + I` to install.
+Then in tmux: `prefix + I` to install. A Rust toolchain with `cargo` is required
+for the first build.
 
 `bin/jetctx` is a tracked wrapper that auto-builds `target/release/jetctx` when the
-binary is missing or the git commit changed.
+binary is missing, the git commit changed, or local Rust sources are newer.
 
 ## Install (Manual)
 
 ```sh
-cargo build --release
-mkdir -p bin
-cp target/release/jetctx bin/jetctx
+cargo build --release --locked
+install -m 755 target/release/jetctx "$HOME/.local/bin/jetctx"
+mkdir -p "$HOME/.config/jetctx/themes"
+for theme in themes/*.toml; do
+  destination="$HOME/.config/jetctx/themes/${theme##*/}"
+  test -e "$destination" || cp "$theme" "$destination"
+done
 ```
 
-Then use `bin/jetctx` in your shell prompt and tmux config.
+Then use `~/.local/bin/jetctx` in your shell prompt and tmux config. Existing
+user-managed themes are not overwritten.
 
 ## Zsh Prompt
 
@@ -129,6 +135,7 @@ jetctx tmux
 jetctx update host --force
 jetctx update project --cwd "$PWD"
 jetctx inspect host
+jetctx inspect project --cwd "$PWD"
 jetctx inspect theme
 jetctx doctor
 ```
@@ -137,4 +144,4 @@ jetctx doctor
 
 - Prompt rendering is currently zsh-oriented.
 - Host cache collection is currently macOS-oriented (`pmset`, `vm_stat`, `sysctl`, `date`).
-- `jetctx update project` exists, but project cache is currently consumed by prompt rendering rather than tmux.
+- Project cache updates are consumed by prompt rendering rather than tmux.

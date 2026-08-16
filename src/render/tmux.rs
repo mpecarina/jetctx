@@ -78,10 +78,10 @@ fn render_memory_label(context: &TmuxContext, symbol: &str) -> Option<String> {
     ))
 }
 
-fn battery_style<'a>(
+fn battery_style(
     percent: Option<u8>,
-    tmux: &'a crate::theme::TmuxPalette,
-) -> (Option<&'a str>, Option<&'a str>) {
+    tmux: &crate::theme::TmuxPalette,
+) -> (Option<&str>, Option<&str>) {
     match percent {
         Some(p) if p <= 20 => (
             tmux.segment_error_bg.as_deref(),
@@ -166,16 +166,10 @@ mod tests {
     fn test_theme() -> Theme {
         Theme {
             name: "test".to_string(),
-            kind: Some("dark".to_string()),
             base: Default::default(),
-            accent: Default::default(),
             semantic: Default::default(),
             prompt: Default::default(),
             tmux: TmuxPalette {
-                session_bg: Some("#00aa00".to_string()),
-                session_fg: Some("#000000".to_string()),
-                window_active_bg: Some("#111111".to_string()),
-                window_active_fg: Some("#ffffff".to_string()),
                 segment_info_bg: Some("#222222".to_string()),
                 segment_info_fg: Some("#ffffff".to_string()),
                 segment_warn_bg: Some("#444400".to_string()),
@@ -184,7 +178,6 @@ mod tests {
                 segment_error_fg: Some("#ffffff".to_string()),
                 segment_time_bg: Some("#333333".to_string()),
                 segment_time_fg: Some("#ffffff".to_string()),
-                ..Default::default()
             },
         }
     }
@@ -200,13 +193,57 @@ mod tests {
             memory_used_bytes: Some(8 * 1024 * 1024 * 1024),
             memory_total_bytes: Some(16 * 1024 * 1024 * 1024),
             time_label: Some("10:42".to_string()),
-            ..Default::default()
         };
 
         let rendered = render(TmuxTarget::Right, &context, &test_config(), &test_theme());
 
-        assert!(rendered.contains("△ 82%"));
-        assert!(rendered.contains("MEM 8.0G/16.0G"));
-        assert!(rendered.contains("◷ 10:42"));
+        assert_eq!(
+            rendered,
+            "#[bg=#222222,fg=#ffffff] BAT 82% #[default] \
+             #[bg=#222222,fg=#ffffff] MEM 8.0G/16.0G #[default] \
+             #[bg=#333333,fg=#ffffff] ◷ 10:42 #[default]"
+        );
+    }
+
+    #[test]
+    fn preserves_battery_threshold_styles() {
+        let mut context = TmuxContext {
+            battery_percent: Some(20),
+            time_label: None,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            render(TmuxTarget::Right, &context, &test_config(), &test_theme()),
+            "#[bg=#660000,fg=#ffffff] BAT 20% #[default]"
+        );
+
+        context.battery_percent = Some(60);
+        assert_eq!(
+            render(TmuxTarget::Right, &context, &test_config(), &test_theme()),
+            "#[bg=#444400,fg=#ffffff] BAT 60% #[default]"
+        );
+    }
+
+    #[test]
+    fn flat_theme_keeps_tmux_output_unstyled() {
+        let context = TmuxContext {
+            battery_percent: Some(82),
+            memory_used_bytes: None,
+            memory_total_bytes: None,
+            time_label: Some("10:42".to_string()),
+        };
+        let theme = Theme {
+            name: "flat".to_string(),
+            base: Default::default(),
+            semantic: Default::default(),
+            prompt: Default::default(),
+            tmux: Default::default(),
+        };
+
+        assert_eq!(
+            render(TmuxTarget::Right, &context, &test_config(), &theme),
+            "BAT 82% ◷ 10:42"
+        );
     }
 }

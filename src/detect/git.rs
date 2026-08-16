@@ -140,18 +140,23 @@ fn read_branch_from_head(git_dir: &Path) -> Result<Option<String>> {
     let head = head.trim();
 
     if let Some(reference) = head.strip_prefix("ref:") {
-        let reference = reference.trim();
-        let branch = reference
-            .rsplit('/')
-            .next()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(str::to_string);
-
-        return Ok(branch);
+        return Ok(branch_name_from_reference(reference.trim()));
     }
 
     Ok(None)
+}
+
+fn branch_name_from_reference(reference: &str) -> Option<String> {
+    let branch = reference
+        .strip_prefix("refs/heads/")
+        .unwrap_or(reference)
+        .trim();
+
+    if branch.is_empty() {
+        None
+    } else {
+        Some(branch.to_string())
+    }
 }
 
 fn read_head_oid_short(repo_root: &Path) -> Result<Option<String>> {
@@ -287,6 +292,14 @@ fn file_mtime_secs(path: &Path) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preserves_hierarchical_branch_names() {
+        assert_eq!(
+            branch_name_from_reference("refs/heads/feature/deep/name"),
+            Some("feature/deep/name".to_string())
+        );
+    }
 
     #[test]
     fn parses_ahead_behind_header() {
