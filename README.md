@@ -11,11 +11,15 @@ It uses one config file, one theme, and shared cache files under `~/.cache/jetct
 
 ## Demo
 
-```sh
-jetctx prompt --cwd "$PWD" --exit-code 0 --duration-ms 842
+https://github.com/user-attachments/assets/34de0110-3e87-4853-8a54-a4d57a5ba3c3
+
+## Tmux
+
+```tmux
+set -g status-right '#(~/.tmux/plugins/jetctx/bin/jetctx tmux)'
 ```
 
-https://github.com/user-attachments/assets/34de0110-3e87-4853-8a54-a4d57a5ba3c3
+https://github.com/user-attachments/assets/83a7b00d-7525-44a2-af29-8538dd8e3a1e
 
 ## Install (TPM)
 
@@ -72,23 +76,6 @@ precmd_functions+=(jetctx_precmd)
 
 If you already track command timing in your shell, pass it through with
 `--duration-ms <ms>`.
-
-## Tmux
-
-`jetctx.tmux` is intentionally just a TPM entrypoint. The actual tmux integration is
-your `status-right` command:
-
-```tmux
-set -g status-right '#(~/.tmux/plugins/jetctx/bin/jetctx tmux)'
-```
-
-Current tmux output includes:
-
-- battery percent
-- memory used/total, when enabled
-- time label
-
-Segments are omitted when data is unavailable.
 
 ## Config
 
