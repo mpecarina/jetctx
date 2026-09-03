@@ -11,7 +11,7 @@ It uses one config file, one theme, and shared cache files under `~/.cache/jetct
 
 ## Demo
 
-https://github.com/user-attachments/assets/34de0110-3e87-4853-8a54-a4d57a5ba3c3
+https://github.com/user-attachments/assets/a1787cd5-cfc2-4b70-b783-0a160388fb12
 
 ## Tmux
 
@@ -19,7 +19,7 @@ https://github.com/user-attachments/assets/34de0110-3e87-4853-8a54-a4d57a5ba3c3
 set -g status-right '#(~/.tmux/plugins/jetctx/bin/jetctx tmux)'
 ```
 
-https://github.com/user-attachments/assets/83a7b00d-7525-44a2-af29-8538dd8e3a1e
+https://github.com/user-attachments/assets/562adb16-1e68-46f3-b810-81d22de92a17
 
 ## Install (TPM)
 
