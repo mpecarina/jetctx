@@ -60,6 +60,10 @@ setup() {
   tmux_client set-option -g automatic-rename off
   tmux_client set-option -g default-terminal tmux-256color
   tmux_client set-option -g mouse off
+  tmux_client set-option -g pane-border-status top
+  tmux_client set-option -g pane-border-format '#[fg=#6c7086] pane #{pane_index} · #{pane_current_command} '
+  tmux_client set-option -g pane-border-style 'fg=#45475a'
+  tmux_client set-option -g pane-active-border-style 'fg=#89b4fa'
   tmux_client set-option -g status on
   tmux_client set-option -g status-interval 1
   tmux_client set-option -g status-style 'bg=#1e1e2e,fg=#cdd6f4'
@@ -68,6 +72,8 @@ setup() {
   tmux_client set-option -g window-status-current-format '#[fg=#cdd6f4] #I:#W '
   tmux_client set-option -g status-right-length 90
   tmux_client set-option -g status-right "#(${repo_root}/bin/jetctx tmux)"
+  tmux_client bind-key % split-window -h -c '#{pane_current_path}' \
+    "env PS1='❯ ' bash --noprofile --norc"
   tmux_client send-keys -t "${session_name}:shell" clear Enter
 }
 

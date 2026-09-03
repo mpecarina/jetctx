@@ -1,8 +1,8 @@
-# jetctx-tmux-demo — render jetctx through a real tmux status-right command.
+# jetctx-tmux-demo — keep jetctx visible across a real multi-pane tmux workspace.
 #
 # Render with:
 #   terminal-rec/scripts/render.sh docs/tapes/jetctx-tmux-demo.tape \
-#     --expect "api-control-plane" --expect "MEM" --expect "## main"
+#     --expect "api-control-plane" --expect "MEM" --expect "?? src/health.rs"
 
 Output docs/media/jetctx-tmux-demo.mp4
 Output .terminal-rec/jetctx-tmux-demo.txt
@@ -26,18 +26,44 @@ Set WindowBar "Colorful"
 Hide
 Type "PS1='❯ ' && bash docs/tapes/jetctx-tmux-demo.sh setup && clear"
 Enter
-Show
-
 Type "bash docs/tapes/jetctx-tmux-demo.sh attach"
-Sleep 1200ms
 Enter
 Wait+Screen@20s /api-control-plane/
+Sleep 500ms
+Show
 Sleep 1400ms
 
 Type "git status --short --branch"
 Sleep 1200ms
 Enter
 Wait+Screen@20s /## main/
+Sleep 1200ms
+
+Ctrl+b
+Sleep 500ms
+Type "%"
+Sleep 1200ms
+
+Type "touch src/health.rs"
+Sleep 1200ms
+Enter
+Sleep 800ms
+
+Type "git status --short"
+Sleep 1200ms
+Enter
+Wait+Screen@20s /\?\? src\/health.rs/
+Sleep 1200ms
+
+Ctrl+b
+Sleep 500ms
+Type "o"
+Sleep 900ms
+
+Type "git status --short"
+Sleep 1200ms
+Enter
+Wait+Screen@20s /\?\? src\/health.rs/
 Sleep 1400ms
 
 Screenshot docs/media/jetctx-tmux-demo.png

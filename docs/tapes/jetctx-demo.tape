@@ -29,6 +29,7 @@ Set WindowBar "Colorful"
 Hide
 Type "PS1='❯ ' && bash docs/tapes/jetctx-demo.sh setup && clear"
 Enter
+Sleep 800ms
 Show
 
 Type "bash docs/tapes/jetctx-demo.sh clean"
