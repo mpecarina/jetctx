@@ -9,6 +9,14 @@ shared prompt and tmux context renderer.
 
 It uses one config file, one theme, and shared cache files under `~/.cache/jetctx/`.
 
+## Demo
+
+```sh
+jetctx prompt --cwd "$PWD" --exit-code 0 --duration-ms 842
+```
+
+https://github.com/user-attachments/assets/34de0110-3e87-4853-8a54-a4d57a5ba3c3
+
 ## Install (TPM)
 
 Add this to your `~/.tmux.conf`:
